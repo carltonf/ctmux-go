@@ -3,7 +3,6 @@ package main
 import (
 	"embed"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -41,7 +40,7 @@ func startSession(name string) {
 		configFileContent, err := configFiles.ReadFile(fmt.Sprintf("%s.conf", name))
 		if err != nil { panic(err) }
 
-		if err := ioutil.WriteFile(tempConfigPath, configFileContent, 0644); err != nil {
+		if err := os.WriteFile(tempConfigPath, configFileContent, 0644); err != nil {
 			panic(err)
 		}
 		// defer os.Remove(tempConfigPath)
