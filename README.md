@@ -120,12 +120,9 @@ go vet ./...
 
 Build for multiple platforms:
 ```bash
-# Linux
+# Linux (amd64)
 GOOS=linux GOARCH=amd64 go build -o out/ctmux-linux .
 
-# macOS
-GOOS=darwin GOARCH=arm64 go build -o out/ctmux-darwin .
-
-# Windows
+# Windows (amd64)
 GOOS=windows GOARCH=amd64 go build -o out/ctmux.exe .
 ```

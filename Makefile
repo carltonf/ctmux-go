@@ -15,11 +15,9 @@ RELEASE_DIR = $(OUT_DIR)/release
 
 DEBUG_LINUX_BIN = $(DEBUG_DIR)/$(BINARY_NAME)
 DEBUG_WIN32_BIN = $(DEBUG_DIR)/$(BINARY_NAME).exe
-DEBUG_DARWIN_BIN = $(DEBUG_DIR)/$(BINARY_NAME)-darwin
 
 RELEASE_LINUX_BIN = $(RELEASE_DIR)/$(BINARY_NAME)-linux-amd64
 RELEASE_WIN32_BIN = $(RELEASE_DIR)/$(BINARY_NAME)-windows-amd64.exe
-RELEASE_DARWIN_BIN = $(RELEASE_DIR)/$(BINARY_NAME)-darwin-arm64
 
 # Default target
 all: build
@@ -38,8 +36,8 @@ fmt:
 $(DEBUG_DIR) $(RELEASE_DIR):
 	@mkdir -p $(DEBUG_DIR) $(RELEASE_DIR)
 
-# Debug builds
-build: linux win32 darwin
+# Debug builds (Linux and Windows amd64)
+build: linux win32
 
 linux: $(DEBUG_DIR)
 	@echo "Building Linux binary ($(VERSION))..."
@@ -49,12 +47,8 @@ win32: $(DEBUG_DIR)
 	@echo "Building Windows binary ($(VERSION))..."
 	GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o $(DEBUG_WIN32_BIN) $(SOURCE_FILES)
 
-darwin: $(DEBUG_DIR)
-	@echo "Building macOS binary ($(VERSION))..."
-	GOOS=darwin GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o $(DEBUG_DARWIN_BIN) $(SOURCE_FILES)
-
 # Release builds with optional UPX compression
-release: release-linux release-win32 release-darwin
+release: release-linux release-win32
 
 release-linux: $(RELEASE_DIR)
 	@echo "Building optimized Linux binary..."
@@ -76,10 +70,6 @@ release-win32: $(RELEASE_DIR)
 		echo "Notice: UPX not found, skipping compression."; \
 	fi
 
-release-darwin: $(RELEASE_DIR)
-	@echo "Building optimized macOS binary..."
-	GOOS=darwin GOARCH=arm64 go build $(GO_BUILD_FLAGS) -o $(RELEASE_DARWIN_BIN) $(SOURCE_FILES)
-
 # Local installation
 install:
 	@echo "Installing ctmux..."
@@ -90,4 +80,4 @@ clean:
 	@echo "Cleaning up..."
 	rm -rf $(OUT_DIR)
 
-.PHONY: all build release linux win32 darwin release-linux release-win32 release-darwin test vet fmt install clean
+.PHONY: all build release linux win32 release-linux release-win32 test vet fmt install clean
