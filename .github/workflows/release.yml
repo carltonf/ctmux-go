@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Artifacts
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Linux
+          - os: linux
+            arch: amd64
+            ext: ""
+          - os: linux
+            arch: arm64
+            ext: ""
+          # macOS
+          - os: darwin
+            arch: amd64
+            ext: ""
+          - os: darwin
+            arch: arm64
+            ext: ""
+          # Windows
+          - os: windows
+            arch: amd64
+            ext: ".exe"
+          - os: windows
+            arch: arm64
+            ext: ".exe"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          check-latest: true
+
+      - name: Build and package
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: 0
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          COMMIT="$(git rev-parse --short HEAD)"
+          BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          
+          BIN_NAME="ctmux${{ matrix.ext }}"
+          DIST_DIR="ctmux-${TAG_NAME}-${{ matrix.os }}-${{ matrix.arch }}"
+          mkdir -p "${DIST_DIR}"
+          
+          go build -trimpath \
+            -ldflags="-s -w -X main.version=${TAG_NAME} -X main.commit=${COMMIT} -X main.date=${BUILD_DATE}" \
+            -o "${DIST_DIR}/${BIN_NAME}" .
+          
+          cp README.md "${DIST_DIR}/"
+          
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            zip -r "${DIST_DIR}.zip" "${DIST_DIR}"
+          else
+            tar -czvf "${DIST_DIR}.tar.gz" "${DIST_DIR}"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: assets-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            ctmux-*.tar.gz
+            ctmux-*.zip
+          retention-days: 1
+
+  release:
+    name: Publish Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate Checksums
+        working-directory: release-assets
+        run: |
+          sha256sum * > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
