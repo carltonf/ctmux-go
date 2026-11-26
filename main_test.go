@@ -10,6 +10,11 @@ import (
 )
 
 func TestEmbeddedConfigs(t *testing.T) {
+	configFS, err := getConfigFS()
+	if err != nil {
+		t.Fatalf("getConfigFS failed: %v", err)
+	}
+
 	tiers := []string{"center", "hub", "node"}
 	for _, tier := range tiers {
 		t.Run(tier, func(t *testing.T) {
@@ -29,6 +34,11 @@ func TestEmbeddedConfigs(t *testing.T) {
 }
 
 func TestAppIntegrationHelp(t *testing.T) {
+	configFS, err := getConfigFS()
+	if err != nil {
+		t.Fatalf("getConfigFS failed: %v", err)
+	}
+
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 
