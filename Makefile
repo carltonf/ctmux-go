@@ -1,56 +1,93 @@
 BINARY_NAME = ctmux
 SOURCE_FILES = .
 UPX = upx
-GO_BUILD_FLAGS = -a -gcflags=all="-l -B" -ldflags="-w -s"
 
-WIN32_GOOS = windows
-WIN32_GOARCH = amd64 # Change to 386 for 32-bit
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-# Default to build a debug version
-all: build
+LDFLAGS = -w -s -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(BUILD_DATE)
+GO_BUILD_FLAGS = -trimpath -ldflags="$(LDFLAGS)"
 
-build: linux win32
-release: release-linux release-win32
-
-release-linux: linux-opt
-release-win32: win32-opt
-
-# Create output directories {
 OUT_DIR = out
 DEBUG_DIR = $(OUT_DIR)/debug
 RELEASE_DIR = $(OUT_DIR)/release
-# Create necessary directories before building
-$(DEBUG_DIR) $(RELEASE_DIR):
-	@mkdir -p $(DEBUG_DIR) $(RELEASE_DIR)
-# }
 
 DEBUG_LINUX_BIN = $(DEBUG_DIR)/$(BINARY_NAME)
 DEBUG_WIN32_BIN = $(DEBUG_DIR)/$(BINARY_NAME).exe
-RELEASE_LINUX_BIN = $(RELEASE_DIR)/$(BINARY_NAME)
-RELEASE_WIN32_BIN = $(RELEASE_DIR)/$(BINARY_NAME).exe
+DEBUG_DARWIN_BIN = $(DEBUG_DIR)/$(BINARY_NAME)-darwin
+
+RELEASE_LINUX_BIN = $(RELEASE_DIR)/$(BINARY_NAME)-linux-amd64
+RELEASE_WIN32_BIN = $(RELEASE_DIR)/$(BINARY_NAME)-windows-amd64.exe
+RELEASE_DARWIN_BIN = $(RELEASE_DIR)/$(BINARY_NAME)-darwin-arm64
+
+# Default target
+all: build
+
+# Test and lint
+test:
+	go test -v ./...
+
+vet:
+	go vet ./...
+
+fmt:
+	go fmt ./...
+
+# Create output directories
+$(DEBUG_DIR) $(RELEASE_DIR):
+	@mkdir -p $(DEBUG_DIR) $(RELEASE_DIR)
+
+# Debug builds
+build: linux win32 darwin
 
 linux: $(DEBUG_DIR)
-	@echo "Building the binary ..."
-	go build -o $(DEBUG_LINUX_BIN) $(SOURCE_FILES)
-linux-opt: $(RELEASE_DIR)
-	@echo "Building the binary with optimizations..."
-	go build $(GO_BUILD_FLAGS) -o $(RELEASE_LINUX_BIN) $(SOURCE_FILES)
-	@echo "Compressing the binary with UPX..."
-	$(UPX) --best --ultra-brute $(RELEASE_LINUX_BIN)
+	@echo "Building Linux binary ($(VERSION))..."
+	go build -ldflags="$(LDFLAGS)" -o $(DEBUG_LINUX_BIN) $(SOURCE_FILES)
 
-# Build for Win32
 win32: $(DEBUG_DIR)
-	@echo "Building the binary for Win32..."
-	GOOS=$(WIN32_GOOS) GOARCH=$(WIN32_GOARCH) go build -o $(DEBUG_WIN32_BIN) $(SOURCE_FILES)
-win32-opt: $(RELEASE_DIR)
-	@echo "Building the binary for Win32 with optimizations..."
-	GOOS=$(WIN32_GOOS) GOARCH=$(WIN32_GOARCH) go build $(GO_BUILD_FLAGS) -o $(RELEASE_WIN32_BIN) $(SOURCE_FILES)
-	@echo "Compressing the win32 binary with UPX..."
-	$(UPX) --best --ultra-brute $(RELEASE_WIN32_BIN)
+	@echo "Building Windows binary ($(VERSION))..."
+	GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o $(DEBUG_WIN32_BIN) $(SOURCE_FILES)
 
-# Clean up generated files
+darwin: $(DEBUG_DIR)
+	@echo "Building macOS binary ($(VERSION))..."
+	GOOS=darwin GOARCH=arm64 go build -ldflags="$(LDFLAGS)" -o $(DEBUG_DARWIN_BIN) $(SOURCE_FILES)
+
+# Release builds with optional UPX compression
+release: release-linux release-win32 release-darwin
+
+release-linux: $(RELEASE_DIR)
+	@echo "Building optimized Linux binary..."
+	GOOS=linux GOARCH=amd64 go build $(GO_BUILD_FLAGS) -o $(RELEASE_LINUX_BIN) $(SOURCE_FILES)
+	@if command -v $(UPX) >/dev/null 2>&1; then \
+		echo "Compressing with UPX..."; \
+		$(UPX) --best --ultra-brute $(RELEASE_LINUX_BIN); \
+	else \
+		echo "Notice: UPX not found, skipping compression."; \
+	fi
+
+release-win32: $(RELEASE_DIR)
+	@echo "Building optimized Windows binary..."
+	GOOS=windows GOARCH=amd64 go build $(GO_BUILD_FLAGS) -o $(RELEASE_WIN32_BIN) $(SOURCE_FILES)
+	@if command -v $(UPX) >/dev/null 2>&1; then \
+		echo "Compressing with UPX..."; \
+		$(UPX) --best --ultra-brute $(RELEASE_WIN32_BIN); \
+	else \
+		echo "Notice: UPX not found, skipping compression."; \
+	fi
+
+release-darwin: $(RELEASE_DIR)
+	@echo "Building optimized macOS binary..."
+	GOOS=darwin GOARCH=arm64 go build $(GO_BUILD_FLAGS) -o $(RELEASE_DARWIN_BIN) $(SOURCE_FILES)
+
+# Local installation
+install:
+	@echo "Installing ctmux..."
+	go install $(GO_BUILD_FLAGS) $(SOURCE_FILES)
+
+# Clean build artifacts
 clean:
 	@echo "Cleaning up..."
 	rm -rf $(OUT_DIR)
 
-.PHONY: all build release linux linux-opt win32 win32-opt clean
+.PHONY: all build release linux win32 darwin release-linux release-win32 release-darwin test vet fmt install clean
